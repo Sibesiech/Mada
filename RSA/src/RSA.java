@@ -16,7 +16,9 @@ public class RSA {
         RSA rsa = new RSA();
 //        rsa.generateKeys();
         rsa.encodeFile();
+        rsa.decodeFile();
     }
+
 
     // Aufgabe 1
     private void generateKeys() {
@@ -39,13 +41,30 @@ public class RSA {
 
         // Aufgabe 2.a Einlesen des PublicKey
         String publicKey = readPublicKeyFromFile();
+
         // Aufgabe 2.b Einlesen der Nachricht als bytes, was einen ASCII Wert von 0 bis 127 repräsentiert.
         byte[] message = readMessageFromFile();
+
         // Aufgabe 2.c Verschlüsseln der Nachricht
         ArrayList<BigInteger> encodedMessage = encodeMessageWithPublicKey(message,publicKey);
+
         // Aufgabe 2.d Ausgeben der verschlüsselten Nachricht als File
         writeEncodedMessageToFile(encodedMessage);
     }
+
+    // Aufgabe 3
+    private void decodeFile() {
+        // Einlesen der verschlüsselten Nachricht
+        String encodedMessage = readEncodedMessageFromFile();
+
+        // Einlesen des privateKeys
+        String privateKeyString = readPrivateKeyFromFile();
+
+        // Entschlüsseln der Nachricht
+        String decodedMessage = decodeMessageWithPrivateKey(encodedMessage,privateKeyString);
+        System.out.println(decodedMessage);
+    }
+
 
 
     // Erzeugen von zwei unterschiedlichen Primzahlen
@@ -159,6 +178,7 @@ public class RSA {
 
     // Speichern der verschlüsselten Nachricht als File
     private void writeEncodedMessageToFile(ArrayList<BigInteger> encodedMessage) {
+        // Zusammenbauen der verschlüsselten Nachricht auf Basis der BigInts
         StringBuilder output = new StringBuilder();
         for (int i = 0; i < encodedMessage.size(); i++) {
             output.append(encodedMessage.get(i).toString());
@@ -173,4 +193,45 @@ public class RSA {
             e.printStackTrace();
         }
     }
+
+    // Einlesen der verschlüsselten Nachricht
+    private String readEncodedMessageFromFile() {
+        String encodedMessage = "";
+        try {
+            encodedMessage = Files.readString(Path.of("./input", "chiffre.txt"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return encodedMessage;
+    }
+
+    // Einlesen des privaten Schlüssels
+    private String readPrivateKeyFromFile() {
+        String publicKeyString = null;
+        try {
+            publicKeyString = Files.readString(Path.of("./input","sk.txt"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return publicKeyString;
+    }
+
+    private String decodeMessageWithPrivateKey(String encodedMessage, String privateKeyString) {
+        // Sicherheitshalber Leerschläge entfernen.
+        String strippedPublicKey = privateKeyString.stripLeading().stripTrailing();
+        // Entfernen der Klammern sowie splitten von n und e
+        String[] splitStrings = strippedPublicKey.substring(1, strippedPublicKey.length() - 1).split(",");
+
+        BigInteger n = new BigInteger(splitStrings[0]);
+        BigInteger d = new BigInteger(splitStrings[1]);
+
+        String[] encodedBytes = encodedMessage.split(",");
+        StringBuilder decodedMessage = new StringBuilder();
+        for (String encodedByteString: encodedBytes) {
+            //leider war ich Zeitlich nicht mehr in der Lage die schnellen Exponentation selber zu implementieren.
+            decodedMessage.append(Character.toString(new BigInteger(encodedByteString).modPow(d,n).byteValue()));
+        }
+        return decodedMessage.toString();
+    }
+
 }

@@ -1,14 +1,11 @@
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.*;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Random;
 
 public class RSA {
-    private Logger logger;
 
     private Random secureRandom = new SecureRandom();
     private int bitLength = 512;
@@ -17,15 +14,9 @@ public class RSA {
 
     public static void main(String[] args) {
         RSA rsa = new RSA();
-        rsa.generateKeys();
-
+//        rsa.generateKeys();
+        rsa.encodeFile();
     }
-
-    public RSA() {
-        logger = new Logger(true);
-    }
-
-
 
     // Aufgabe 1
     private void generateKeys() {
@@ -43,6 +34,20 @@ public class RSA {
         writeKeysToFiles();
     }
 
+    // Aufgabe 2
+    private void encodeFile() {
+
+        // Aufgabe 2.a Einlesen des PublicKey
+        String publicKey = readPublicKeyFromFile();
+        // Aufgabe 2.b Einlesen der Nachricht als bytes, was einen ASCII Wert von 0 bis 127 repräsentiert.
+        byte[] message = readMessageFromFile();
+        // Aufgabe 2.c Verschlüsseln der Nachricht
+        ArrayList<BigInteger> encodedMessage = encodeMessageWithPublicKey(message,publicKey);
+        // Aufgabe 2.d Ausgeben der verschlüsselten Nachricht als File
+        writeEncodedMessageToFile(encodedMessage);
+    }
+
+
     // Erzeugen von zwei unterschiedlichen Primzahlen
     private void generatePrimes() {
         p = BigInteger.probablePrime(bitLength / 2, secureRandom);
@@ -51,41 +56,30 @@ public class RSA {
         do {
             q = BigInteger.probablePrime(bitLength / 2, secureRandom);
         } while (p.equals(q));
-        logger.log("Pime p: " + p);
-        logger.log("Pime q: " + q);
+
     }
 
     // Berechnen von Phi und N basierend auf den ausgewählten Primzahlen.
     private void calculatePhiAndN() {
         n = p.multiply(q);
-        logger.log("n: " + n);
 
         // (p - 1) * (q - 1) berechnen von phi ist einfach, da es sich ja um Primzahlen handeln sollte.
         phi = (p.subtract(BigInteger.ONE)).multiply(q.subtract(BigInteger.ONE));
-        logger.log("phi: " + phi);
     }
 
     // Berechnen von e und d, der Vorgang kann mehrere Male wiederholt werden falls e nicht Teilerfremd zu phi ist.
     private void calculateEAndD() {
         ExtendedEuclideanAlgorithm eea;
         do {
-            if (e == null){
-                logger.log("Trying to find legit e and d");
-            } else {
-                logger.log("Repeating calculation of e and d as GCF was not 1");
-            }
 
-            e = new BigInteger(bitLength , secureRandom);
-            logger.log("Set e: " + e);
+            e = new BigInteger(bitLength, secureRandom);
 
             eea = new ExtendedEuclideanAlgorithm(phi, e);
 
             d = eea.getY0();
-            logger.log("Calculated d: " + d);
             //falls sich ein negatives d ergibt, wird phi hinzugerechnet.
-            if (d.compareTo(BigInteger.ZERO)<0){
+            if (d.compareTo(BigInteger.ZERO) < 0) {
                 d = d.add(phi);
-                logger.log("Added phi to negative d: " + d);
             }
 
         } while (!eea.getA().equals(BigInteger.ONE));
@@ -102,8 +96,7 @@ public class RSA {
     private void writePrivatKey() {
         String output = String.format("(%d,%d)", n, d);
         try {
-            Files.writeString(Path.of("./output", "sk.txt"), output, StandardOpenOption.CREATE);
-            logger.log("wrote private key to file");
+            Files.writeString(Path.of("./output", "sk.txt"), output);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -114,8 +107,69 @@ public class RSA {
     private void writePublicKey() {
         String output = String.format("(%d,%d)", n, e);
         try {
-            Files.writeString(Path.of("./output", "pk.txt"), output, StandardOpenOption.CREATE);
-            logger.log("wrote public key to file");
+            Files.writeString(Path.of("./output", "pk.txt"), output);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+
+    // Verschlüsseln der Nachricht basierend auf dem PublicKey
+    private ArrayList<BigInteger> encodeMessageWithPublicKey(byte[] message, String publicKeyString) {
+        // Sicherheitshalber Leerschläge entfernen.
+        String strippedPublicKey = publicKeyString.stripLeading().stripTrailing();
+        // Entfernen der Klammern sowie splitten von n und e
+        String[] splitStrings = strippedPublicKey.substring(1, strippedPublicKey.length() - 1).split(",");
+
+        BigInteger n = new BigInteger(splitStrings[0]);
+        BigInteger e = new BigInteger(splitStrings[1]);
+
+        ArrayList<BigInteger> encodedMessage = new ArrayList<>();
+        for (byte b: message) {
+            //leider war ich Zeitlich nicht mehr in der Lage die schnellen Exponentation selber zu implementieren.
+            encodedMessage.add(BigInteger.valueOf(b).modPow(e,n));
+        }
+        return encodedMessage;
+    }
+
+
+    // Einlesen der Nachricht als Byte Array ein Byte repräsentiert automatisch einen Wert zwischen 0 und 127 und bildet ASCII somit ab.
+    private byte[] readMessageFromFile() {
+        byte[] messageAsByteArray = null;
+        try {
+            messageAsByteArray = Files.readAllBytes(Path.of("./input/text.txt"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return messageAsByteArray;
+    }
+
+    // Einlesen des PublicKeys vorerst als String. Dieser wird später umgewandelt und n und e extrahiert.
+    private String readPublicKeyFromFile() {
+        String publicKeyString = null;
+        try {
+            publicKeyString = Files.readString(Path.of("./input/pk.txt"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return publicKeyString;
+    }
+
+    // Speichern der verschlüsselten Nachricht als File
+    private void writeEncodedMessageToFile(ArrayList<BigInteger> encodedMessage) {
+        StringBuilder output = new StringBuilder();
+        for (int i = 0; i < encodedMessage.size(); i++) {
+            output.append(encodedMessage.get(i).toString());
+            if (i != encodedMessage.size()-1){
+                output.append(",");
+            }
+        }
+        try {
+            Files.writeString(Path.of("./output", "chiffre.txt"), output.toString());
+            logger.log("wrote encoded message to file");
+
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -3,6 +3,7 @@ import java.math.BigInteger;
 import java.nio.file.*;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Random;
 
 public class RSA {
@@ -46,7 +47,7 @@ public class RSA {
         byte[] message = readMessageFromFile();
 
         // Aufgabe 2.c Verschlüsseln der Nachricht
-        ArrayList<BigInteger> encodedMessage = encodeMessageWithPublicKey(message,publicKey);
+        ArrayList<BigInteger> encodedMessage = encodeMessageWithPublicKey(message, publicKey);
 
         // Aufgabe 2.d Ausgeben der verschlüsselten Nachricht als File
         writeEncodedMessageToFile(encodedMessage);
@@ -61,10 +62,11 @@ public class RSA {
         String privateKeyString = readPrivateKeyFromFile();
 
         // Entschlüsseln der Nachricht
-        String decodedMessage = decodeMessageWithPrivateKey(encodedMessage,privateKeyString);
-        System.out.println(decodedMessage);
-    }
+        String decodedMessage = decodeMessageWithPrivateKey(encodedMessage, privateKeyString);
 
+        // Schreibe die entschlüsselte Nachricht ins File
+        writeDecodedMessageToFile(decodedMessage);
+    }
 
 
     // Erzeugen von zwei unterschiedlichen Primzahlen
@@ -133,8 +135,6 @@ public class RSA {
     }
 
 
-
-
     // Verschlüsseln der Nachricht basierend auf dem PublicKey
     private ArrayList<BigInteger> encodeMessageWithPublicKey(byte[] message, String publicKeyString) {
         // Sicherheitshalber Leerschläge entfernen.
@@ -146,9 +146,9 @@ public class RSA {
         BigInteger e = new BigInteger(splitStrings[1]);
 
         ArrayList<BigInteger> encodedMessage = new ArrayList<>();
-        for (byte b: message) {
+        for (byte b : message) {
             //leider war ich Zeitlich nicht mehr in der Lage die schnellen Exponentation selber zu implementieren.
-            encodedMessage.add(BigInteger.valueOf(b).modPow(e,n));
+            encodedMessage.add(fastExponentiation(BigInteger.valueOf(b), e, n));
         }
         return encodedMessage;
     }
@@ -182,7 +182,7 @@ public class RSA {
         StringBuilder output = new StringBuilder();
         for (int i = 0; i < encodedMessage.size(); i++) {
             output.append(encodedMessage.get(i).toString());
-            if (i != encodedMessage.size()-1){
+            if (i != encodedMessage.size() - 1) {
                 output.append(",");
             }
         }
@@ -209,7 +209,7 @@ public class RSA {
     private String readPrivateKeyFromFile() {
         String publicKeyString = null;
         try {
-            publicKeyString = Files.readString(Path.of("./input","sk.txt"));
+            publicKeyString = Files.readString(Path.of("./input", "sk.txt"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -227,11 +227,40 @@ public class RSA {
 
         String[] encodedBytes = encodedMessage.split(",");
         StringBuilder decodedMessage = new StringBuilder();
-        for (String encodedByteString: encodedBytes) {
-            //leider war ich Zeitlich nicht mehr in der Lage die schnellen Exponentation selber zu implementieren.
-            decodedMessage.append(Character.toString(new BigInteger(encodedByteString).modPow(d,n).byteValue()));
+        for (String encodedByteString : encodedBytes) {
+            // Entschlüsseln der einzelnen bytes und zusammenfügen in der entschlüsselten Nachricht.
+            decodedMessage.append(Character.toString(fastExponentiation(new BigInteger(encodedByteString), d, n).byteValue()));
         }
         return decodedMessage.toString();
     }
 
+    // Speichern der entschlüsselten Nachricht
+    private void writeDecodedMessageToFile(String decodedMessage) {
+        try {
+            Files.writeString(Path.of("./output", "text-d.txt"), decodedMessage);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // x^e mod m Methode für die schnelle Exponentation
+    private BigInteger fastExponentiation(BigInteger base, BigInteger exponent, BigInteger modulo) {
+        BigInteger h = BigInteger.ONE;
+        BigInteger k = base;
+
+        // Um denn Exponenten durchlaufen zu können wird er hier als String abgebildet.
+        String exponentAsBinary = exponent.toString(2);
+        int i = exponentAsBinary.length() - 1;
+
+        while (i >= 0) {
+            // Gemäss dem Algorithmus wird bei Bits die 1 sind das Multiplizieren sowie Modulo durchgeführt
+            if (exponentAsBinary.charAt(i) == '1') {
+                h = h.multiply(k).mod(modulo);
+            }
+            k = k.modPow(BigInteger.TWO, modulo);
+            i--;
+        }
+        return h;
+    }
 }

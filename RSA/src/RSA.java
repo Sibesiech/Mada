@@ -168,7 +168,6 @@ public class RSA {
         }
         try {
             Files.writeString(Path.of("./output", "chiffre.txt"), output.toString());
-            logger.log("wrote encoded message to file");
 
         } catch (IOException e) {
             e.printStackTrace();
